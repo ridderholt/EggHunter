@@ -1,0 +1,84 @@
+﻿@page "/"
+@using BlazorBarcodeScanner.ZXing.JS
+@inject IndexState Model
+
+<div class="container">
+    <div class="row align-items-center">
+        <div class="col-12">
+            <BlazorBarcodeScanner.ZXing.JS.BarcodeReader Title=""
+                                                         StartCameraAutomatically="true"
+                                                         ShowResult="false"
+                                                         OnBarcodeReceived="OnScanResult"
+                                                         ShowStart="false"
+                                                         ShowReset="false"
+                                                         ShowToggleTorch="false"
+                                                         VideoWidth="350"
+                                                         VideoHeight="400"
+                                                         VideoInputDevicesChanged="e => Model.Dispatch(new DevicesFound(e.ToArray()))"
+                                                         ShowVideoDeviceList="false"
+                                                         @ref="_reader"/>
+        </div>
+    </div>
+    @if (Model.State.IsLoading)
+    {
+        <div class="row align-items-center">
+            <div class="col-12">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.State.AudioPath))
+    {
+        <div class="row row_margin">
+            <div class="col-12">
+                <audio src="/audio/@Model.State.AudioPath" autoplay controls></audio>
+            </div>
+        </div>
+    }
+    <div class="row row_margin">
+        <div class="col-12">
+            <button class="btn btn-primary btn-lg" @onclick="() => _reader.ToggleTorch()">
+                <i class="bi bi-lightbulb"></i>
+                Toggle torch
+            </button>
+        </div>
+    </div>
+    @if (Model.State.Devices.Any())
+    {
+        <div class="row row_margin">
+            <div class="col-12">
+                <select class="form-select" @onchange="e => OnVideoSourceChanged(e.Value?.ToString())">
+                    @foreach (var device in Model.State.Devices)
+                    {
+                        <option selected="@(device.DeviceId == Model.State.Devices.First().DeviceId)" value="@device.DeviceId">@device.Label</option>
+                    }
+                </select>
+            </div>
+        </div>
+    }
+</div>
+
+
+@code {
+
+    private BarcodeReader _reader = null!;
+
+    private void OnVideoSourceChanged(string id)
+    {
+        if (Model.State.Devices.Any(d => d.DeviceId == id))
+        {
+            _reader.SelectVideoInput(Model.State.Devices.First(x => x.DeviceId == id));
+        }
+    }
+
+    private async Task OnScanResult(BarcodeReceivedEventArgs args)
+    {
+        Model.Dispatch(new StartLoading());
+        await _reader.StopDecoding();
+        await Model.DispatchAsync(new CodeScanned(args.BarcodeText));
+        Model.Dispatch(new StopLoading());
+    }
+
+}
